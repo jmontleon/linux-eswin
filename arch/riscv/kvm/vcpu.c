@@ -593,7 +593,9 @@ void kvm_arch_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
 		nacl_csr_write(nsh, CSR_HEDELEG, cfg->hedeleg);
 		nacl_csr_write(nsh, CSR_HVIP, csr->hvip);
 		nacl_csr_write(nsh, CSR_VSATP, csr->vsatp);
+#ifndef CONFIG_SOC_SIFIVE_EIC7700
 		nacl_csr_write(nsh, CSR_HENVCFG, cfg->henvcfg);
+#endif
 		if (IS_ENABLED(CONFIG_32BIT))
 			nacl_csr_write(nsh, CSR_HENVCFGH, cfg->henvcfg >> 32);
 		if (riscv_has_extension_unlikely(RISCV_ISA_EXT_SMSTATEEN)) {
@@ -612,7 +614,9 @@ void kvm_arch_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
 		csr_write(CSR_HEDELEG, cfg->hedeleg);
 		csr_write(CSR_HVIP, csr->hvip);
 		csr_write(CSR_VSATP, csr->vsatp);
+#ifndef CONFIG_SOC_SIFIVE_EIC7700
 		csr_write(CSR_HENVCFG, cfg->henvcfg);
+#endif
 		if (IS_ENABLED(CONFIG_32BIT))
 			csr_write(CSR_HENVCFGH, cfg->henvcfg >> 32);
 		if (riscv_has_extension_unlikely(RISCV_ISA_EXT_SMSTATEEN)) {
