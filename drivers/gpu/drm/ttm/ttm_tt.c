@@ -159,7 +159,11 @@ static void ttm_tt_init_fields(struct ttm_tt *ttm,
 	ttm->dma_address = NULL;
 	ttm->swap_storage = NULL;
 	ttm->sg = bo->sg;
+#ifdef CONFIG_SOC_SIFIVE_EIC7700
+	ttm->caching = ttm_write_combined;
+#else
 	ttm->caching = caching;
+#endif
 	ttm->restore = NULL;
 	ttm->backup = NULL;
 }
