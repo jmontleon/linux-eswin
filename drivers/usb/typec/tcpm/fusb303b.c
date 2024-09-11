@@ -55,12 +55,10 @@
 #define FUSB303B_REG_PORTROLE 0X3
 #define FUSB303B_REG_CONTROL 0X4
 #define FUSB303B_REG_CONTROL1 0X5
-#define FUSB303B_REG_MANUAL 0X9
 #define FUSB303B_REG_RESET 0XA
 #define FUSB303B_REG_MASK 0XE
 #define FUSB303B_REG_MASK1 0XF
 #define FUSB303B_REG_STATUS 0X11
-#define FUSB303B_REG_STATUS1 0X12
 #define FUSB303B_REG_TYPE 0X13
 #define FUSB303B_REG_INTERRUPT 0X14
 #define FUSB303B_REG_INTERRUPT1 0X15
@@ -69,82 +67,43 @@
 #define FUSB303B_PORTROLE_SINK BIT(1)
 #define FUSB303B_PORTROLE_SOURCE BIT(0)
 
-#define FUSB303B_CONTROL_T_DRP BIT(6)
-#define FUSB303B_CONTROL_DRPTOGGLE BIT(4)
 #define FUSB303B_CONTROL_DCABLE_EN BIT(3)
-#define FUSB303B_CONTROL_HOST_CUR BIT(1)
 #define FUSB303B_CONTROL_INT_MASK BIT(0)
 
 #define FUSB303B_CONTROL1_REMEDY_EN BIT(7)
-#define FUSB303B_CONTROL1_AUTO_SNK_TH BIT(5)
-#define FUSB303B_CONTROL1_AUTO_SNK_EN BIT(4)
 #define FUSB303B_CONTROL1_ENABLE BIT(3)
-#define FUSB303B_CONTROL1_TCCDEB BIT(0)
 
-#define FUSB303B_STATUS_AUTOSNK BIT(7)
-#define FUSB303B_STATUS_VSAFE0V BIT(6)
-#define FUSB303B_STATUS_ORIENT BIT(4)
 #define FUSB303B_STATUS_VBUSOK BIT(3)
-#define FUSB303B_STATUS_BC_LVL BIT(1)
-#define FUSB303B_STATUS_BC_LVL_MASK 0X6
 #define FUSB303B_STATUS_ATTACH BIT(0)
 
-#define FUSB303B_STATUS_MASK 0X30
-
-#define FUSB303B_BC_LVL_SINK_OR_RA 0
-#define FUSB303B_BC_LVL_SINK_DEFAULT 1
-#define FUSB303B_BC_LVL_SINK_1_5A 2
-#define FUSB303B_BC_LVL_SINK_3A 3
-
-#define FUSB303B_INT_I_ORIENT BIT(6)
-#define FUSB303B_INT_I_FAULT BIT(5)
 #define FUSB303B_INT_I_VBUS_CHG BIT(4)
-#define FUSB303B_INT_I_AUTOSNK BIT(3)
-#define FUSB303B_INT_I_BC_LVL BIT(2)
 #define FUSB303B_INT_I_DETACH BIT(1)
 #define FUSB303B_INT_I_ATTACH BIT(0)
-
-#define FUSB303B_INT1_I_REM_VBOFF BIT(6)
-#define FUSB303B_INT1_I_REM_VBON BIT(5)
-#define FUSB303B_INT1_I_REM_FAIL BIT(3)
-#define FUSB303B_INT1_I_FRC_FAIL BIT(2)
-#define FUSB303B_INT1_I_FRC_SUCC BIT(1)
-#define FUSB303B_INT1_I_REMEDY BIT(0)
 
 #define FUSB303B_TYPE_SINK BIT(4)
 #define FUSB303B_TYPE_SOURCE BIT(3)
 
 #define FUSB_REG_MASK_M_VBUS_CHG BIT(4)
+#define FUSB_REG_MASK_M_DETACH BIT(1)
+#define FUSB_REG_MASK_M_ATTACH BIT(0)
 
 #define LOG_BUFFER_ENTRIES 1024
 #define LOG_BUFFER_ENTRY_SIZE 128
 
-struct fusb303b_chip {
+struct fusb303b_chip
+{
 	struct device *dev;
 	struct i2c_client *i2c_client;
-	struct tcpm_port *tcpm_port;
-	struct tcpc_dev tcpc_dev;
-
+	struct fwnode_handle *fwnode;
 	spinlock_t irq_lock;
 	struct work_struct irq_work;
-	bool irq_suspended;
-	bool irq_while_suspended;
 	struct gpio_desc *gpio_int_n;
 	int gpio_int_n_irq;
-
+	struct usb_role_switch *role_sw;
 	/* lock for sharing chip states */
 	struct mutex lock;
-
-	/* port status */
-	bool vconn_on;
-	bool vbus_on;
-	bool charge_on;
-	bool vbus_present;
-	enum typec_cc_polarity cc_polarity;
-	enum typec_cc_status cc1;
-	enum typec_cc_status cc2;
-
-	struct task_struct *stat_task;
+	bool vbus_ok;
+	bool attch_ok;
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *dentry;
 	/* lock for log buffer access */
@@ -335,9 +294,10 @@ static int fusb303b_sw_reset(struct fusb303b_chip *chip)
 static int fusb303b_init_interrupt(struct fusb303b_chip *chip)
 {
 	int ret = 0;
-
+	u8 int_unmask = FUSB_REG_MASK_M_VBUS_CHG |
+                        FUSB_REG_MASK_M_DETACH | FUSB_REG_MASK_M_ATTACH;
 	ret = fusb303b_i2c_write(chip, FUSB303B_REG_MASK,
-				 0xFF & ~FUSB_REG_MASK_M_VBUS_CHG);
+                                0xFF & ~(int_unmask));
 	if (ret < 0)
 		return ret;
 	ret = fusb303b_i2c_write(chip, FUSB303B_REG_MASK1, 0xFF);
@@ -345,17 +305,15 @@ static int fusb303b_init_interrupt(struct fusb303b_chip *chip)
 		return ret;
 
 	ret = fusb303b_i2c_clear_bits(chip, FUSB303B_REG_CONTROL,
-				      FUSB303B_CONTROL_INT_MASK);
+                                    FUSB303B_CONTROL_INT_MASK);
 	if (ret < 0)
 		return ret;
 
 	return ret;
 }
 
-static int tcpm_init(struct tcpc_dev *dev)
+static int fusb303b_init(struct fusb303b_chip *chip)
 {
-	struct fusb303b_chip *chip =
-		container_of(dev, struct fusb303b_chip, tcpc_dev);
 	int ret = 0;
 	u8 data;
 
@@ -363,9 +321,12 @@ static int tcpm_init(struct tcpc_dev *dev)
 	if (ret < 0)
 		return ret;
 	fusb303b_i2c_read(chip, FUSB303B_REG_STATUS, &data);
+	fusb303b_i2c_mask_write(chip, FUSB303B_REG_CONTROL,
+                                FUSB303B_CONTROL_DCABLE_EN,
+                                FUSB303B_CONTROL_DCABLE_EN);
 	fusb303b_i2c_mask_write(chip, FUSB303B_REG_CONTROL1,
-				FUSB303B_CONTROL1_ENABLE,
-				FUSB303B_CONTROL1_ENABLE);
+                                FUSB303B_CONTROL1_ENABLE | FUSB303B_CONTROL1_REMEDY_EN,
+                                FUSB303B_CONTROL1_ENABLE | FUSB303B_CONTROL1_REMEDY_EN);
 	ret = fusb303b_init_interrupt(chip);
 	if (ret < 0)
 		return ret;
@@ -373,7 +334,8 @@ static int tcpm_init(struct tcpc_dev *dev)
 	ret = fusb303b_i2c_read(chip, FUSB303B_REG_STATUS, &data);
 	if (ret < 0)
 		return ret;
-	chip->vbus_present = !!(data & FUSB303B_STATUS_VBUSOK);
+	chip->vbus_ok = !!(data & FUSB303B_STATUS_VBUSOK);
+	chip->attch_ok = !!(data & FUSB303B_STATUS_ATTACH);
 	ret = fusb303b_i2c_read(chip, FUSB303B_REG_DEVICE_ID, &data);
 	if (ret < 0)
 		return ret;
@@ -387,229 +349,103 @@ static int tcpm_init(struct tcpc_dev *dev)
 	return ret;
 }
 
-static int tcpm_get_vbus(struct tcpc_dev *dev)
+static s32 fusb303b_set_port_check(struct fusb303b_chip *chip,
+                                    enum typec_port_type port_type)
 {
-	struct fusb303b_chip *chip =
-		container_of(dev, struct fusb303b_chip, tcpc_dev);
-	int ret = 0;
-
-	mutex_lock(&chip->lock);
-	ret = chip->vbus_present ? 1 : 0;
-	mutex_unlock(&chip->lock);
-	fusb303b_log(chip, "%s.%d vbus_present:%d\n", __FUNCTION__, __LINE__,
-		     ret);
-	return ret;
-}
-
-static const char *const typec_cc_status_name[] = {
-	[TYPEC_CC_OPEN] = "Open",     [TYPEC_CC_RA] = "Ra",
-	[TYPEC_CC_RD] = "Rd",	      [TYPEC_CC_RP_DEF] = "Rp-def",
-	[TYPEC_CC_RP_1_5] = "Rp-1.5", [TYPEC_CC_RP_3_0] = "Rp-3.0",
-};
-
-static int tcpm_set_cc(struct tcpc_dev *dev, enum typec_cc_status cc)
-{
-	struct fusb303b_chip *chip =
-		container_of(dev, struct fusb303b_chip, tcpc_dev);
-	fusb303b_log(chip, "%s.%d cc:%s\n", __FUNCTION__, __LINE__,
-		     typec_cc_status_name[cc]);
-
-	return 0;
-}
-
-static int tcpm_get_cc(struct tcpc_dev *dev, enum typec_cc_status *cc1,
-		       enum typec_cc_status *cc2)
-{
-	struct fusb303b_chip *chip =
-		container_of(dev, struct fusb303b_chip, tcpc_dev);
-
-	mutex_lock(&chip->lock);
-	*cc1 = chip->cc1;
-	*cc2 = chip->cc2;
-	fusb303b_log(chip, "%s.%d,cc1=%s, cc2=%s", __FUNCTION__, __LINE__,
-		     typec_cc_status_name[*cc1], typec_cc_status_name[*cc2]);
-	mutex_unlock(&chip->lock);
-
-	return 0;
-}
-
-static int tcpm_set_polarity(struct tcpc_dev *dev,
-			     enum typec_cc_polarity polarity)
-{
-	struct fusb303b_chip *chip =
-		container_of(dev, struct fusb303b_chip, tcpc_dev);
-	fusb303b_log(chip, "%s.%d polarity:%d\n", __FUNCTION__, __LINE__,
-		     polarity);
-	return 0;
-}
-
-static int tcpm_set_vconn(struct tcpc_dev *dev, bool on)
-{
-	struct fusb303b_chip *chip =
-		container_of(dev, struct fusb303b_chip, tcpc_dev);
-	int ret = 0;
-
-	fusb303b_log(chip, "%s.%d on:%d\n", __FUNCTION__, __LINE__, on);
-	chip->vconn_on = on;
-
-	return ret;
-}
-
-static int tcpm_set_vbus(struct tcpc_dev *dev, bool on, bool charge)
-{
-	struct fusb303b_chip *chip =
-		container_of(dev, struct fusb303b_chip, tcpc_dev);
-
-	fusb303b_log(chip, "%s.%d on:%d,charge:%d\n", __FUNCTION__, __LINE__,
-		     on, charge);
-	chip->vbus_on = on;
-	chip->charge_on = charge;
-
-	return 0;
-}
-
-static int tcpm_set_pd_rx(struct tcpc_dev *dev, bool on)
-{
-	struct fusb303b_chip *chip =
-		container_of(dev, struct fusb303b_chip, tcpc_dev);
-
-	fusb303b_log(chip, "%s.%d\n", __FUNCTION__, __LINE__);
-
-	return 0;
-}
-
-static const char *const typec_role_name[] = {
-	[TYPEC_SINK] = "Sink",
-	[TYPEC_SOURCE] = "Source",
-};
-
-static const char *const typec_data_role_name[] = {
-	[TYPEC_DEVICE] = "Device",
-	[TYPEC_HOST] = "Host",
-};
-
-static int tcpm_set_roles(struct tcpc_dev *dev, bool attached,
-			  enum typec_role pwr, enum typec_data_role data)
-{
-	struct fusb303b_chip *chip =
-		container_of(dev, struct fusb303b_chip, tcpc_dev);
-	fusb303b_log(chip, "%s.%d pwr:%d,%s data:%d,%s\n", __FUNCTION__,
-		     __LINE__, pwr, typec_role_name[data], data,
-		     typec_data_role_name[data]);
-
-	return 0;
-}
-
-static s32 tcpm_start_toggling(struct tcpc_dev *dev,
-			       enum typec_port_type port_type,
-			       enum typec_cc_status cc)
-{
-	struct fusb303b_chip *chip =
-		container_of(dev, struct fusb303b_chip, tcpc_dev);
 	s32 ret = 0;
 
-	fusb303b_log(chip, "%s.%d port_type:%d cc:%d\n", __FUNCTION__, __LINE__,
-		     port_type, cc);
-	switch (port_type) {
-	case TYPEC_PORT_DRP:
-		ret = fusb303b_i2c_write(chip, FUSB303B_REG_PORTROLE,
-					 FUSB303B_PORTROLE_DRP);
-		break;
-	case TYPEC_PORT_SRC:
-		ret = fusb303b_i2c_write(chip, FUSB303B_REG_PORTROLE,
-					 FUSB303B_PORTROLE_SOURCE);
-		break;
-	default:
-		ret = fusb303b_i2c_write(chip, FUSB303B_REG_PORTROLE,
-					 FUSB303B_PORTROLE_SINK);
-		break;
+	fusb303b_log(chip, "%s.%d port_type:%d",
+                    __FUNCTION__, __LINE__, port_type);
+	switch (port_type)
+	{
+            case TYPEC_PORT_DRP:
+                ret = fusb303b_i2c_write(chip, FUSB303B_REG_PORTROLE,
+                                        FUSB303B_PORTROLE_DRP);
+                break;
+            case TYPEC_PORT_SRC:
+                ret = fusb303b_i2c_write(chip, FUSB303B_REG_PORTROLE,
+                                        FUSB303B_PORTROLE_SOURCE);
+                break;
+            default:
+                ret = fusb303b_i2c_write(chip, FUSB303B_REG_PORTROLE,
+                                        FUSB303B_PORTROLE_SINK);
+                break;
 	}
 
 	return ret;
 }
 
-static int tcpm_pd_transmit(struct tcpc_dev *dev, enum tcpm_transmit_type type,
-			    const struct pd_message *msg,
-			    unsigned int negotiated_rev)
+int fusb303b_set_usb_role(struct fusb303b_chip *chip)
 {
-	struct fusb303b_chip *chip =
-		container_of(dev, struct fusb303b_chip, tcpc_dev);
+	u8 type = 0;
+	int ret = 0;
 
-	fusb303b_log(chip, "%s.%d negotiated_rev:%d\n", __FUNCTION__, __LINE__,
-		     negotiated_rev);
+	if ((true == chip->attch_ok) && (true == chip->vbus_ok))
+	{
+		ret = fusb303b_i2c_read(chip, FUSB303B_REG_TYPE, &type);
+		if (ret < 0)
+		{
+			fusb303b_log(chip, "read type error:%d", ret);
+			return ret;
+		}
+		fusb303b_log(chip, "%s type: 0x%02x", __func__, type);
+		if (FUSB303B_TYPE_SOURCE == (FUSB303B_TYPE_SOURCE & type))
+		{
+			usb_role_switch_set_role(chip->role_sw, USB_ROLE_HOST);
+			fusb303b_log(chip, "set usb to host");
+		}
+		else
+		{
+			usb_role_switch_set_role(chip->role_sw, USB_ROLE_DEVICE);
+			fusb303b_log(chip, "set usb to device");
+			if (FUSB303B_TYPE_SINK != (FUSB303B_TYPE_SINK & type))
+			{
+				fusb303b_log(chip, "illegel type:0x%02x,set usb to device", type);
+			}
+		}
+	}
 
 	return 0;
 }
 
-static void init_tcpc_dev(struct tcpc_dev *fusb303b_tcpc_dev)
-{
-	fusb303b_tcpc_dev->init = tcpm_init;
-	fusb303b_tcpc_dev->get_vbus = tcpm_get_vbus;
-	fusb303b_tcpc_dev->set_cc = tcpm_set_cc;
-	fusb303b_tcpc_dev->get_cc = tcpm_get_cc;
-	fusb303b_tcpc_dev->set_polarity = tcpm_set_polarity;
-	fusb303b_tcpc_dev->set_vconn = tcpm_set_vconn;
-	fusb303b_tcpc_dev->set_vbus = tcpm_set_vbus;
-	fusb303b_tcpc_dev->set_pd_rx = tcpm_set_pd_rx;
-	fusb303b_tcpc_dev->set_roles = tcpm_set_roles;
-	fusb303b_tcpc_dev->start_toggling = tcpm_start_toggling;
-	fusb303b_tcpc_dev->pd_transmit = tcpm_pd_transmit;
-}
-
-enum fusb_cc_status {
-	CC_NO_CONN,
-	CC_CONN_CC1,
-	CC_CONN_CC2,
-	CC_CONN_FAULT,
-};
-
-static irqreturn_t fusb303b_irq(int irq, void *dev_id)
+static irqreturn_t fusb303b_irq_intn(int irq, void *dev_id)
 {
 	struct fusb303b_chip *chip = dev_id;
 	int ret = 0;
-	u8 interrupt = 0, interrupt1;
-	u8 status = 0;
-	bool vbus_present = 0;
-	u8 cc_status = 0;
+	u8 interrupt = 0, interrupt1 = 0, status = 0;
 
 	mutex_lock(&chip->lock);
-	/* grab a snapshot of intr flags */
-
 	ret = fusb303b_i2c_read(chip, FUSB303B_REG_INTERRUPT, &interrupt);
 	if (ret < 0)
 		goto done;
-	ret = fusb303b_i2c_read(chip, FUSB303B_REG_INTERRUPT, &interrupt1);
+	ret = fusb303b_i2c_read(chip, FUSB303B_REG_INTERRUPT1, &interrupt1);
 	if (ret < 0)
 		goto done;
 	ret = fusb303b_i2c_read(chip, FUSB303B_REG_STATUS, &status);
 	if (ret < 0)
 		goto done;
 
-	fusb303b_log(chip, "IRQ: 0x%02x, status: 0x%02x\n", interrupt, status);
+	fusb303b_log(chip, "IRQ: 0x%02x,0x%02x status: 0x%02x",
+				 interrupt, interrupt1, status);
 
-	if (interrupt & FUSB303B_INT_I_VBUS_CHG) {
-		vbus_present = !!(status & FUSB303B_STATUS_VBUSOK);
+	if (interrupt & FUSB303B_INT_I_VBUS_CHG)
+	{
+		chip->vbus_ok = !!(status & FUSB303B_STATUS_VBUSOK);
 		fusb303b_log(chip, "IRQ: VBUS_OK, vbus=%s",
-			     vbus_present ? "On" : "Off");
-		if (vbus_present != chip->vbus_present) {
-			chip->vbus_present = vbus_present;
-			tcpm_vbus_change(chip->tcpm_port);
-		}
+                    chip->vbus_ok ? "On" : "Off");
 	}
-	cc_status = (status & FUSB303B_STATUS_MASK) >> 4;
-
-	if (CC_CONN_CC1 == cc_status) {
-		chip->cc_polarity = TYPEC_POLARITY_CC1;
-		tcpm_cc_change(chip->tcpm_port);
-	} else if (CC_CONN_CC2 == cc_status) {
-		chip->cc_polarity = TYPEC_POLARITY_CC2;
-		tcpm_cc_change(chip->tcpm_port);
+	if (interrupt & (FUSB303B_INT_I_ATTACH | FUSB303B_INT_I_DETACH))
+	{
+		chip->attch_ok = !!(status & FUSB303B_STATUS_ATTACH);
+		fusb303b_log(chip, "IRQ: attach OK, attach=%s",
+                        chip->attch_ok ? "On" : "Off");
 	}
-
+	fusb303b_set_usb_role(chip);
 	if (0 != interrupt)
 		fusb303b_i2c_write(chip, FUSB303B_REG_INTERRUPT, interrupt);
 	if (0 != interrupt1)
 		fusb303b_i2c_write(chip, FUSB303B_REG_INTERRUPT1, interrupt1);
+
 done:
 	mutex_unlock(&chip->lock);
 	return IRQ_HANDLED;
@@ -621,13 +457,15 @@ static int init_gpio(struct fusb303b_chip *chip)
 	int ret = 0;
 
 	chip->gpio_int_n = devm_gpiod_get(dev, "int", GPIOD_IN);
-	if (IS_ERR(chip->gpio_int_n)) {
-		dev_err(dev, "failed to request gpio_int_n\n");
+	if (IS_ERR(chip->gpio_int_n))
+	{
+		fusb303b_log(chip, "failed to request gpio_int_n\n");
 		return PTR_ERR(chip->gpio_int_n);
 	}
 	ret = gpiod_to_irq(chip->gpio_int_n);
-	if (ret < 0) {
-		dev_err(dev, "cannot request IRQ for GPIO Int_N, ret=%d", ret);
+	if (ret < 0)
+	{
+		fusb303b_log(chip, "cannot request IRQ for GPIO Int_N, ret=%d", ret);
 		return ret;
 	}
 	chip->gpio_int_n_irq = ret;
@@ -639,8 +477,7 @@ static const struct property_entry port_props[] = {
 	PROPERTY_ENTRY_STRING("data-role", "dual"),
 	PROPERTY_ENTRY_STRING("power-role", "dual"),
 	PROPERTY_ENTRY_STRING("try-power-role", "sink"),
-	{}
-};
+	{}};
 
 static struct fwnode_handle *fusb303b_fwnode_get(struct device *dev)
 {
@@ -660,6 +497,8 @@ static int fusb303b_probe(struct i2c_client *client)
 	struct regmap *regmap;
 	int irq_sel_reg;
 	int irq_sel_bit;
+	const char *cap_str;
+	int usb_data_role = 0;
 	regmap = syscon_regmap_lookup_by_phandle(dev->of_node, "eswin,syscfg");
 	if (!IS_ERR(regmap)) {
 		ret = of_property_read_u32_index(dev->of_node, "eswin,syscfg",
@@ -688,47 +527,77 @@ static int fusb303b_probe(struct i2c_client *client)
 	chip->dev = &client->dev;
 	mutex_init(&chip->lock);
 	spin_lock_init(&chip->irq_lock);
-	init_tcpc_dev(&chip->tcpc_dev);
+	fusb303b_init(chip);
 	fusb303b_debugfs_init(chip);
-	if (client->irq) {
+	if (client->irq)
+	{
 		chip->gpio_int_n_irq = client->irq;
-	} else {
+	}
+	else
+	{
 		ret = init_gpio(chip);
 		if (ret < 0)
 			goto destroy_workqueue;
 	}
-	chip->tcpc_dev.fwnode = fusb303b_fwnode_get(dev);
-	if (IS_ERR(chip->tcpc_dev.fwnode)) {
-		ret = PTR_ERR(chip->tcpc_dev.fwnode);
+	chip->fwnode = fusb303b_fwnode_get(dev);
+	if (IS_ERR(chip->fwnode))
+	{
+		ret = PTR_ERR(chip->fwnode);
 		goto destroy_workqueue;
 	}
-	chip->tcpm_port = tcpm_register_port(&client->dev, &chip->tcpc_dev);
-	if (IS_ERR(chip->tcpm_port)) {
-		fwnode_handle_put(chip->tcpc_dev.fwnode);
-		ret = PTR_ERR(chip->tcpm_port);
-		if (ret != -EPROBE_DEFER)
-			dev_err(dev, "cannot register tcpm port, ret=%d", ret);
-		goto destroy_workqueue;
+	/*
+	 * This fwnode has a "compatible" property, but is never populated as a
+	 * struct device. Instead we simply parse it to read the properties.
+	 * This it breaks fw_devlink=on. To maintain backward compatibility
+	 * with existing DT files, we work around this by deleting any
+	 * fwnode_links to/from this fwnode.
+	 */
+	fw_devlink_purge_absent_suppliers(chip->fwnode);
+
+	/* USB data support is optional */
+	ret = fwnode_property_read_string(chip->fwnode, "data-role", &cap_str);
+	if (ret == 0)
+	{
+		ret = typec_find_port_data_role(cap_str);
+		if (ret < 0)
+		{
+			fusb303b_log(chip, "%s is not leage data-role\n", cap_str);
+			goto put_fwnode;
+		}
+		usb_data_role = ret;
+	}
+	else
+	{
+		fusb303b_log(chip, "cannot find data-role in dts\n");
+	}
+	chip->role_sw = usb_role_switch_get(chip->dev);
+	if (IS_ERR(chip->role_sw))
+	{
+		ret = PTR_ERR(chip->role_sw);
+		fusb303b_log(chip, "get role_sw error");
+		goto put_fwnode;
 	}
 
 	ret = devm_request_threaded_irq(dev, chip->gpio_int_n_irq, NULL,
-					fusb303b_irq,
-					IRQF_ONESHOT | IRQF_TRIGGER_LOW,
-					"fusb303b_interrupt_int_n", chip);
-	if (ret < 0) {
-		dev_err(dev, "cannot request IRQ for GPIO Int_N, ret=%d", ret);
-		goto tcpm_unregister_port;
+									fusb303b_irq_intn,
+									IRQF_ONESHOT | IRQF_TRIGGER_LOW,
+									"fusb303b_interrupt_int_n", chip);
+	if (ret < 0)
+	{
+		fusb303b_log(chip, "cannot request IRQ for GPIO Int_N, ret=%d", ret);
+		goto err_put_role;
 	}
 
 	enable_irq_wake(chip->gpio_int_n_irq);
+	fusb303b_set_port_check(chip, usb_data_role);
+
 	i2c_set_clientdata(client, chip);
-
-	fusb303b_log(chip, "Kernel thread created successfully\n");
+	fusb303b_log(chip, "Kernel thread created successfully");
 	return ret;
-
-tcpm_unregister_port:
-	tcpm_unregister_port(chip->tcpm_port);
-	fwnode_handle_put(chip->tcpc_dev.fwnode);
+err_put_role:
+	usb_role_switch_put(chip->role_sw);
+put_fwnode:
+	fwnode_handle_put(chip->fwnode);
 destroy_workqueue:
 	fusb303b_debugfs_exit(chip);
 
@@ -741,64 +610,28 @@ static void fusb303b_remove(struct i2c_client *client)
 
 	disable_irq_wake(chip->gpio_int_n_irq);
 	free_irq(chip->gpio_int_n_irq, chip);
-	cancel_work_sync(&chip->irq_work);
-	tcpm_unregister_port(chip->tcpm_port);
-	fwnode_handle_put(chip->tcpc_dev.fwnode);
+	usb_role_switch_put(chip->role_sw);
+	fwnode_handle_put(chip->fwnode);
 	fusb303b_debugfs_exit(chip);
 }
 
-static int fusb303b_pm_suspend(struct device *dev)
-{
-	struct fusb303b_chip *chip = dev->driver_data;
-	unsigned long flags;
-
-	spin_lock_irqsave(&chip->irq_lock, flags);
-	chip->irq_suspended = true;
-	spin_unlock_irqrestore(&chip->irq_lock, flags);
-
-	flush_work(&chip->irq_work);
-	return 0;
-}
-
-static int fufusb303b_pm_resume(struct device *dev)
-{
-	struct fusb303b_chip *chip = dev->driver_data;
-	unsigned long flags;
-
-	spin_lock_irqsave(&chip->irq_lock, flags);
-	if (chip->irq_while_suspended) {
-		schedule_work(&chip->irq_work);
-		chip->irq_while_suspended = false;
-	}
-	chip->irq_suspended = false;
-	spin_unlock_irqrestore(&chip->irq_lock, flags);
-
-	return 0;
-}
-
 static const struct of_device_id fusb303b_dt_match[] = {
-	{ .compatible = "fcs,fusb303b" },
+	{.compatible = "fcs,fusb303b"},
 	{},
 };
 MODULE_DEVICE_TABLE(of, fusb303b_dt_match);
 
 static const struct i2c_device_id fusb303b_i2c_device_id[] = {
-	{ "typec_fusb303b", 0 },
+	{"typec_fusb303b", 0},
 	{},
 };
 MODULE_DEVICE_TABLE(i2c, fusb303b_i2c_device_id);
 
-static const struct dev_pm_ops fusb303b_pm_ops = {
-	.suspend = fusb303b_pm_suspend,
-	.resume = fufusb303b_pm_resume,
-};
-
 static struct i2c_driver fusb303b_driver = {
 	.driver = {
-		   .name = "typec_fusb303b",
-		   .pm = &fusb303b_pm_ops,
-		   .of_match_table = of_match_ptr(fusb303b_dt_match),
-		   },
+		.name = "typec_fusb303b",
+		.of_match_table = of_match_ptr(fusb303b_dt_match),
+	},
 	.probe = fusb303b_probe,
 	.remove = fusb303b_remove,
 	.id_table = fusb303b_i2c_device_id,
