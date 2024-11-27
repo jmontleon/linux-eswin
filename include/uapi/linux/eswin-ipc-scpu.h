@@ -47,6 +47,9 @@
      IPC_RES_STATUS_SIZE + IPC_RES_SERVICE_STATUS_SIZE+IPC_RES_LEN_SIZE+ \
      IPC_RES_XOR_SIZE)
 
+typedef unsigned char	    u_int8_t;
+typedef unsigned int	   u_int32_t;
+
 typedef enum
 {
     OTP_KEY = 0,
@@ -684,7 +687,7 @@ typedef struct {
 }cipher_get_nid_req_t;
 
 typedef struct {
-	__u32 id; // globally unique id for this mem info in kernel, ipc driver use it to find this mem info
+	__u32 id; /* globally unique id for this mem info in kernel, ipc driver use it to find this mem info */
 	struct dma_allocation_data dma_alloc_info;
 }khandle_dma_allocation_data_t;
 

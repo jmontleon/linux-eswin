@@ -2,6 +2,9 @@
 #define _MMZ_VB_UAPI_H_
 
 #include <linux/types.h>
+#include <linux/es_vb_user.h>
+
+typedef ES_U32 VB_POOL;
 
 /*vb cfg flag*/
 #define MMZ_VB_CFG_FLAG_INIT	(1 << 0)
@@ -96,36 +99,36 @@ typedef struct esVB_GET_BLOCK_CMD_S
 	struct esVB_GET_BLOCK_RESP_S getBlkResp;
 }VB_GET_BLOCK_CMD_S;
 
-//corresponding to MMZ_VB_IOCTL_POOL_SIZE
+/* corresponding to MMZ_VB_IOCTL_POOL_SIZE */
 typedef struct esVB_GET_POOLSIZE_CMD_S
 {
 	VB_POOL poolId;
 	__u64 poolSize;
 }VB_GET_POOLSIZE_CMD_S;
 
-//corresponding to MMZ_VB_IOCTL_FLUSH_POOL
+/* corresponding to MMZ_VB_IOCTL_FLUSH_POOL */
 typedef struct esVB_FLUSH_POOL_CMD_S
 {
 	VB_POOL poolId;
-	__u64 offset; // offset addr in the pool
-	__u64 size; // size to be flushed
+	__u64 offset; /* offset addr in the pool */
+	__u64 size; /* size to be flushed */
 }VB_FLUSH_POOL_CMD_S;
 
-//corresponding to MMZ_VB_IOCTL_BLOCK_TO_POOL
+/* corresponding to MMZ_VB_IOCTL_BLOCK_TO_POOL */
 typedef struct esVB_BLOCK_TO_POOL_CMD_S
 {
-	int fd;	// Input: The dmabuf_fd of the block
-	VB_POOL poolId; //Output: The pool which the block belongs to;
+	int fd;	/* Input: The dmabuf_fd of the block */
+	VB_POOL poolId; /* Output: The pool which the block belongs to; */
 }VB_BLOCK_TO_POOL_CMD_S;
 
-//corresponding to MMZ_VB_IOCTL_GET_BLOCK_OFFSET
+/* corresponding to MMZ_VB_IOCTL_GET_BLOCK_OFFSET */
 typedef struct esVB_GET_BLOCKOFFSET_CMD_S
 {
-	int fd;	// Input: The dmabuf_fd, it might be the real block or the splittedBlock
-	__u64 offset; // Output: The offset in pool
+	int fd;	/* Input: The dmabuf_fd, it might be the real block or the splittedBlock */
+	__u64 offset; /* Output: The offset in pool */
 }VB_GET_BLOCKOFFSET_CMD_S;
 
-//corresponding to MMZ_VB_IOCTL_SPLIT_DMABUF
+/* corresponding to MMZ_VB_IOCTL_SPLIT_DMABUF */
 typedef struct esVB_SPLIT_DMABUF_CMD_S {
 	int fd; /* Input: The original dmabuf fd to be splitted */
 	int slice_fd; /* Outpu: splitted dmabuf fd */
@@ -133,26 +136,26 @@ typedef struct esVB_SPLIT_DMABUF_CMD_S {
 	__u64 len; /* size of the buffer to be splitted */
 }VB_BLOCK_SPLIT_CMD_S;
 
-//corresponding to MMZ_VB_IOCTL_DMABUF_REFCOUNT
+/* corresponding to MMZ_VB_IOCTL_DMABUF_REFCOUNT */
 typedef struct esVB_DMABUF_REFCOUNT_CMD_S
 {
-	int fd;	// Input: The dmabuf_fd
-	__u64 refCnt; // Output: The file_count of the dmabuf
+	int fd;	/* Input: The dmabuf_fd */
+	__u64 refCnt; /* Output: The file_count of the dmabuf */
 }VB_DMABUF_REFCOUNT_CMD_S;
 
-//corresponding to MMZ_VB_IOCTL_RETRIEVE_MEM_NODE
+/* corresponding to MMZ_VB_IOCTL_RETRIEVE_MEM_NODE */
 typedef struct esVB_RETRIEVE_MEM_NODE_CMD_S
 {
-	int fd;	// Input: The dmabuf_fd
-	void *cpu_vaddr; // Input: The virtual addr of cpu in user space
-	int numa_node; // Ouput: return the NUMA node id of the memory
+	int fd;	/* Input: The dmabuf_fd */
+	void *cpu_vaddr; /* Input: The virtual addr of cpu in user space */
+	int numa_node; /* Ouput: return the NUMA node id of the memory */
 }VB_RETRIEVE_MEM_NODE_CMD_S;
 
-//corresponding to MMZ_VB_IOCTL_DMABUF_SIZE
+/* corresponding to MMZ_VB_IOCTL_DMABUF_SIZE */
 typedef struct esVB_DMABUF_SIZE_CMD_S
 {
-	int fd;	// Input: The dmabuf_fd
-	__u64 size; // Output: The size of the dmabuf
+	int fd;	/* Input: The dmabuf_fd */
+	__u64 size; /* Output: The size of the dmabuf */
 }VB_DMABUF_SIZE_CMD_S;
 
 #define MMZ_VB_IOC_MAGIC 		'M'

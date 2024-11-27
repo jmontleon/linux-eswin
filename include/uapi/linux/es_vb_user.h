@@ -12,6 +12,10 @@
 
 #define ES_MAX_MMZ_NAME_LEN	64
 
+typedef char ES_CHAR;
+typedef unsigned int ES_U32;
+typedef unsigned long long ES_U64;
+
 /**
  * mmz vb pool or block struct definition
  */
