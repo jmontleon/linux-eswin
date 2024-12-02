@@ -760,7 +760,7 @@ int win2030_tbu_power(struct device *dev, bool is_powerUp)
 	}
 
 	pr_debug("%s called!\n", __func__);
-	of_property_for_each_u32(node, "tbus", prop, cur, tbu_id) {
+	of_property_for_each_u32(node, "tbus", tbu_id) {
 		pr_debug("tbus = <0x%02x>\n", tbu_id);
 		if (0 == win2030_get_tbu_priv(nid, tbu_id, &tbu_priv_p)) {
 			tbu_client_p = tbu_priv_p->tbu_client_p;
@@ -816,7 +816,7 @@ int win2030_tbu_power_by_dev_and_node(struct device *dev, struct device_node *no
 	}
 
 	pr_debug("%s called!\n", __func__);
-	of_property_for_each_u32(node, "tbus", prop, cur, tbu_id) {
+	of_property_for_each_u32(node, "tbus", tbu_id) {
 		pr_debug("tbus = <0x%02x>\n", tbu_id);
 		if (0 == win2030_get_tbu_priv(nid, tbu_id, &tbu_priv_p)) {
 			tbu_client_p = tbu_priv_p->tbu_client_p;
@@ -923,11 +923,11 @@ static int __init tcu_proc_init(void)
 {
 	char proc_name[64];
 
-	sprintf(proc_name, "%s_info", "tcu");
-	pr_debug("%s, proc_name:%s\n", __func__, proc_name);
-	if (NULL == proc_create_single_data(proc_name, 0, NULL, tcu_proc_show, NULL)) {
-		return -1;
-	}
+	// sprintf(proc_name, "%s_info", "tcu");
+	// pr_debug("%s, proc_name:%s\n", __func__, proc_name);
+	// if (NULL == proc_create_single_data(proc_name, 0, NULL, tcu_proc_show, NULL)) {
+	// 	return -1;
+	// }
 
 	return 0;
 }
