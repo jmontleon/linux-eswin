@@ -139,7 +139,7 @@ static ssize_t eswin_fan_pwm_ctl_store(struct device *dev, struct device_attribu
 		dev_err(dev, "get error attr index 0x%x\n", attr->index);
 	}
 
-	pwm_apply_state(ctl->pwm, &state);
+	pwm_apply_might_sleep(ctl->pwm, &state);
 
 	return count;
 }
@@ -240,7 +240,7 @@ static int eswin_fan_control_set_pwm_duty(const long val, struct eswin_fan_contr
 
 	pwm_get_state(ctl->pwm, &state);
 	pwm_set_relative_duty_cycle(&state, val, 100);
-	pwm_apply_state(ctl->pwm, &state);
+	pwm_apply_might_sleep(ctl->pwm, &state);
 
 	return 0;
 }
@@ -525,7 +525,7 @@ static int eswin_fan_control_probe(struct platform_device *pdev)
 	}
 	dev_err(&pdev->dev, "state.period: %lld state.duty_cycle: %lld\n",
 			state.period,state.duty_cycle);
-	ret = pwm_apply_state(ctl->pwm, &state);
+	ret = pwm_apply_might_sleep(ctl->pwm, &state);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to apply initial PWM state: %d\n",
 			ret);
