@@ -21,6 +21,8 @@
  *          Yuyang Cong <congyuyang@eswincomputing.com>
  */
 
+#include <stddef.h>
+
 #ifndef ES_DMA_MEMCP_H
 #define ES_DMA_MEMCP_H
 
