@@ -253,3 +253,7 @@ static int __init eic7700_reset_init(void)
 	return platform_driver_register(&eswin_reset_driver);
 }
 arch_initcall(eic7700_reset_init);
+
+MODULE_AUTHOR("Huangyifeng <huangyifeng@eswincomputing.com>");
+MODULE_DESCRIPTION("Eswin Reset Controller Driver for EIC770X SoCs");
+MODULE_LICENSE("GPL v2");
