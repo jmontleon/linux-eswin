@@ -269,7 +269,7 @@ static const struct dw_pcie_ops dw_pcie_ops = {
 	.link_up = eswin_pcie_link_up,
 };
 
-static int __exit eswin_pcie_remove(struct platform_device *pdev)
+static void __exit eswin_pcie_remove(struct platform_device *pdev)
 {
 	struct eswin_pcie *pcie = platform_get_drvdata(pdev);
 
@@ -277,8 +277,6 @@ static int __exit eswin_pcie_remove(struct platform_device *pdev)
 
 	eswin_pcie_power_off(pcie);
 	eswin_pcie_clk_disable(pcie);
-
-	return 0;
 }
 
 static int eswin_pcie_probe(struct platform_device *pdev)
