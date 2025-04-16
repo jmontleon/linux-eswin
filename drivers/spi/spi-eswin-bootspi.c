@@ -656,3 +656,4 @@ module_platform_driver(eswin_bootspi_driver);
 MODULE_AUTHOR("Huangyifeng <huangyifeng@eswincomputing.com>");
 MODULE_DESCRIPTION("Eswin Boot SPI Controller Driver for EIC770X SoCs");
 MODULE_LICENSE("GPL v2");
+MODULE_SOFTDEP("pre: spi-nor");
