@@ -617,13 +617,12 @@ err_put_master:
 	return ret;
 }
 
-static int eswin_bootspi_remove(struct platform_device *pdev)
+static void eswin_bootspi_remove(struct platform_device *pdev)
 {
 	struct es_spi_priv *priv = platform_get_drvdata(pdev);
 	struct spi_controller *master = priv->master;
 
 	spi_master_put(master);
-	return 0;
 }
 
 static const struct of_device_id eswin_bootspi_of_match[] = {
