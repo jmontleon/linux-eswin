@@ -306,7 +306,7 @@ static ssize_t pac193x_ctrl_show(struct device *dev,
 			   "OVF", (set_val >> 0) & 0x1, (act_val >> 0) & 0x1, (lat_val >> 0) & 0x1);
 }
 
-int pac193x_common_reg_set(struct device *dev, const char *buf, u8 commad)
+static int pac193x_common_reg_set(struct device *dev, const char *buf, u8 commad)
 {
 	struct pac193x_data *data = dev_get_drvdata(dev);
 	unsigned long val;
