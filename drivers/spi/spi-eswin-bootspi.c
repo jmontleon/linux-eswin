@@ -139,7 +139,7 @@ struct es_spi_priv {
 	u8 cs;				/* chip select pin */
 	u8 tmode;			/* TR/TO/RO/EEPROM */
 	u8 type;			/* SPI/SSP/MicroWire */
-	struct spi_controller *master;
+	struct spi_controller *controller;
 	struct device *dev;
 	int irq;
 };
@@ -378,7 +378,7 @@ static int eswin_bootspi_exec_op(struct spi_mem *mem,
 {
 	bool read = op->data.dir == SPI_MEM_DATA_IN;
 	int ret = 0;
-	struct es_spi_priv *priv = spi_master_get_devdata(mem->spi->master);
+	struct es_spi_priv *priv = spi_controller_get_devdata(mem->spi->controller);
 	struct device *dev = priv->dev;
 
 	priv->addr = op->addr.val;
@@ -487,7 +487,7 @@ static const struct spi_controller_mem_ops eswin_bootspi_mem_ops = {
 
 static int eswin_bootspi_setup(struct spi_device *spi)
 {
-	struct es_spi_priv *priv = spi_master_get_devdata(spi->master);
+	struct es_spi_priv *priv = spi_controller_get_devdata(spi->controller);
 	struct device *dev = priv->dev;
 	int vaule = 0;
 	int ret;
@@ -530,25 +530,25 @@ err_cfg_clk:
 static int eswin_bootspi_probe(struct platform_device *pdev)
 {
 	struct es_spi_priv *priv;
-	struct spi_controller *master;
+	struct spi_controller *controller;
 	int ret = 0;
 	struct device *dev = &pdev->dev;
 
-	master = devm_spi_alloc_master(&pdev->dev, sizeof(*priv));
-	if (!master)
+	controller = devm_spi_alloc_host(&pdev->dev, sizeof(*priv));
+	if (!controller)
 		return -ENOMEM;
 
-	master->mode_bits = SPI_CPOL | SPI_CPHA;
-	master->flags = SPI_MASTER_HALF_DUPLEX;
-	master->setup = eswin_bootspi_setup;
-	master->dev.of_node = pdev->dev.of_node;
-	master->bits_per_word_mask = SPI_BPW_MASK(32) | SPI_BPW_MASK(16) |
+	controller->mode_bits = SPI_CPOL | SPI_CPHA;
+	controller->flags = SPI_CONTROLLER_HALF_DUPLEX;
+	controller->setup = eswin_bootspi_setup;
+	controller->dev.of_node = pdev->dev.of_node;
+	controller->bits_per_word_mask = SPI_BPW_MASK(32) | SPI_BPW_MASK(16) |
 				     SPI_BPW_MASK(8);
-	master->mem_ops = &eswin_bootspi_mem_ops;
-	master->num_chipselect = 1;
+	controller->mem_ops = &eswin_bootspi_mem_ops;
+	controller->num_chipselect = 1;
 
-	priv = spi_master_get_devdata(master);
-	priv->master = master;
+	priv = spi_controller_get_devdata(controller);
+	priv->controller = controller;
 	priv->dev = &pdev->dev;
 	platform_set_drvdata(pdev, priv);
 
@@ -605,7 +605,7 @@ static int eswin_bootspi_probe(struct platform_device *pdev)
 	if (!priv->fifo_len) {
 		priv->fifo_len = 256;
 	}
-	ret = devm_spi_register_controller(dev, master);
+	ret = devm_spi_register_controller(dev, controller);
 	if (ret)
 		return ret;
 
