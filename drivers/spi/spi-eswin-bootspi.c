@@ -534,7 +534,7 @@ static int eswin_bootspi_probe(struct platform_device *pdev)
 	int ret = 0;
 	struct device *dev = &pdev->dev;
 
-	master = spi_alloc_master(&pdev->dev, sizeof(*priv));
+	master = devm_spi_alloc_master(&pdev->dev, sizeof(*priv));
 	if (!master)
 		return -ENOMEM;
 
@@ -607,22 +607,11 @@ static int eswin_bootspi_probe(struct platform_device *pdev)
 	}
 	ret = devm_spi_register_controller(dev, master);
 	if (ret)
-		goto err_put_master;
+		return ret;
 
 	dev_info(&pdev->dev, "fifo_len %d, %s mode.\n", priv->fifo_len, priv->irq ? "irq" : "polling");
 	return 0;
 
-err_put_master:
-	spi_master_put(master);
-	return ret;
-}
-
-static void eswin_bootspi_remove(struct platform_device *pdev)
-{
-	struct es_spi_priv *priv = platform_get_drvdata(pdev);
-	struct spi_controller *master = priv->master;
-
-	spi_master_put(master);
 }
 
 static const struct of_device_id eswin_bootspi_of_match[] = {
@@ -641,7 +630,6 @@ MODULE_DEVICE_TABLE(acpi, eswin_bootspi_acpi_match);
 
 static struct platform_driver eswin_bootspi_driver = {
 	.probe		= eswin_bootspi_probe,
-	.remove		= eswin_bootspi_remove,
 	.driver		= {
 		.name	= "eswin-bootspi",
 		.of_match_table = eswin_bootspi_of_match,
