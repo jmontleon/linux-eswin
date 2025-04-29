@@ -284,7 +284,7 @@ static void eswin_bootspi_cmd_cfg(struct es_spi_priv *priv, u32 code, u32 type)
  * @param [in]  wr_dest: Address of data to be sent
  * @param [in]  size: size of flash to be write
  */
-void eswin_bootspi_writer(struct es_spi_priv *priv)
+static void eswin_bootspi_writer(struct es_spi_priv *priv)
 {
 	u32 write_size = 0, offset, cmd_code;
 	u32 cmd_type = priv->cmd_type;
