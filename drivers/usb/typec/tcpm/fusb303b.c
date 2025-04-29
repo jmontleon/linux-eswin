@@ -375,7 +375,7 @@ static s32 fusb303b_set_port_check(struct fusb303b_chip *chip,
 	return ret;
 }
 
-int fusb303b_set_usb_role(struct fusb303b_chip *chip)
+static int fusb303b_set_usb_role(struct fusb303b_chip *chip)
 {
 	u8 type = 0;
 	int ret = 0;
