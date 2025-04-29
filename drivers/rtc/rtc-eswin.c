@@ -245,14 +245,13 @@ static int eswin_rtc_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int eswin_rtc_remove(struct platform_device *pdev)
+static void eswin_rtc_remove(struct platform_device *pdev)
 {
 	struct eswin_rtc_dev *pdata = platform_get_drvdata(pdev);
 
 	eswin_rtc_alarm_irq_enable(&pdev->dev, 0);
 	device_init_wakeup(&pdev->dev, 0);
 	clk_disable_unprepare(pdata->clk);
-	return 0;
 }
 
 #ifdef CONFIG_PM_SLEEP
