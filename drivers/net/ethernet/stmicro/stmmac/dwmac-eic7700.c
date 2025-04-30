@@ -384,7 +384,7 @@ static int dwc_qos_probe(struct platform_device *pdev,
 	return 0;
 }
 
-static int dwc_qos_remove(struct platform_device *pdev)
+static void dwc_qos_remove(struct platform_device *pdev)
 {
 	struct dwc_qos_priv *dwc_priv = get_stmmac_bsp_priv(&pdev->dev);
 
@@ -393,15 +393,13 @@ static int dwc_qos_remove(struct platform_device *pdev)
 	clk_disable_unprepare(dwc_priv->clk_app);
 
 	devm_gpiod_put(&pdev->dev, dwc_priv->phy_reset);
-
-	return 0;
 }
 
 struct dwc_eth_dwmac_data {
 	int (*probe)(struct platform_device *pdev,
 		     struct plat_stmmacenet_data *data,
 		     struct stmmac_resources *res);
-	int (*remove)(struct platform_device *pdev);
+	void (*remove)(struct platform_device *pdev);
 };
 
 static const struct dwc_eth_dwmac_data dwc_qos_data = {
@@ -470,15 +468,12 @@ remove:
 static void dwc_eth_dwmac_remove(struct platform_device *pdev)
 {
 	const struct dwc_eth_dwmac_data *data;
-	int err;
 
 	data = device_get_match_data(&pdev->dev);
 
 	stmmac_dvr_remove(&pdev->dev);
 
-	err = data->remove(pdev);
-	if (err < 0)
-		dev_err(&pdev->dev, "failed to remove subdriver: %d\n", err);
+	data->remove(pdev);
 }
 
 static const struct of_device_id dwc_eth_dwmac_match[] = {
