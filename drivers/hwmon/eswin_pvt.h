@@ -224,4 +224,3 @@ struct pvt_poly {
 };
 
 #endif /* __HWMON_ESWIN_PVT_H__ */
-
