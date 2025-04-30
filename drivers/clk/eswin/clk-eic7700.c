@@ -272,13 +272,14 @@ static struct eswin_mux_clock eic7700_mux_clks[] = {
 };
 
 /*The hardware decides vaule 0, 1 and 2 both means 2 divsor, so we have to add these ugly tables*/
-static struct clk_div_table u_3_bit_special_div_table[8];
-static struct clk_div_table u_4_bit_special_div_table[16];
-static struct clk_div_table u_6_bit_special_div_table[64];
-static struct clk_div_table u_7_bit_special_div_table[128];
-static struct clk_div_table u_8_bit_special_div_table[256];
-static struct clk_div_table u_11_bit_special_div_table[2048];
-static struct clk_div_table u_16_bit_special_div_table[65536];
+/* +1 makes space for sentinel value to indicate end of table */
+static struct clk_div_table u_3_bit_special_div_table[8+1];
+static struct clk_div_table u_4_bit_special_div_table[16+1];
+static struct clk_div_table u_6_bit_special_div_table[64+1];
+static struct clk_div_table u_7_bit_special_div_table[128+1];
+static struct clk_div_table u_8_bit_special_div_table[256+1];
+static struct clk_div_table u_11_bit_special_div_table[2048+1];
+static struct clk_div_table u_16_bit_special_div_table[65536+1];
 
 static struct eswin_divider_clock eic7700_div_clks[] = {
 	{ EIC7700_DIVDER_U_SYS_CFG_DIV_DYNM, "divder_u_sys_cfg_div_dynm",   "fixed_rate_clk_spll0_fout3", 0,
@@ -1137,13 +1138,14 @@ static int eswin_clk_probe(struct platform_device *pdev)
 	if (!clk_data)
 		return -EAGAIN;
 
-	special_div_table_init(u_3_bit_special_div_table, ARRAY_SIZE(u_3_bit_special_div_table));
-	special_div_table_init(u_4_bit_special_div_table, ARRAY_SIZE(u_4_bit_special_div_table));
-	special_div_table_init(u_6_bit_special_div_table, ARRAY_SIZE(u_6_bit_special_div_table));
-	special_div_table_init(u_7_bit_special_div_table, ARRAY_SIZE(u_7_bit_special_div_table));
-	special_div_table_init(u_8_bit_special_div_table, ARRAY_SIZE(u_8_bit_special_div_table));
-	special_div_table_init(u_11_bit_special_div_table, ARRAY_SIZE(u_11_bit_special_div_table));
-	special_div_table_init(u_16_bit_special_div_table, ARRAY_SIZE(u_16_bit_special_div_table));
+	/* -1 to exclude sentinel index from initialization */
+	special_div_table_init(u_3_bit_special_div_table, ARRAY_SIZE(u_3_bit_special_div_table)-1);
+	special_div_table_init(u_4_bit_special_div_table, ARRAY_SIZE(u_4_bit_special_div_table)-1);
+	special_div_table_init(u_6_bit_special_div_table, ARRAY_SIZE(u_6_bit_special_div_table)-1);
+	special_div_table_init(u_7_bit_special_div_table, ARRAY_SIZE(u_7_bit_special_div_table)-1);
+	special_div_table_init(u_8_bit_special_div_table, ARRAY_SIZE(u_8_bit_special_div_table)-1);
+	special_div_table_init(u_11_bit_special_div_table, ARRAY_SIZE(u_11_bit_special_div_table)-1);
+	special_div_table_init(u_16_bit_special_div_table, ARRAY_SIZE(u_16_bit_special_div_table)-1);
 
 	eswin_clk_register_fixed_rate(eic7700_fixed_rate_clks,
 				ARRAY_SIZE(eic7700_fixed_rate_clks),
