@@ -209,12 +209,11 @@ MODULE_DEVICE_TABLE(of, eswin_pwm_dt_ids);
 static int eswin_pwm_probe(struct platform_device *pdev)
 {
 	struct eswin_pwm *pc;
-	struct pwm_chip *chip;
 	int ret, count;
 	struct resource *res;
 	int clk_rate;
 
-	chip = devm_pwmchip_alloc(&pdev->dev, NUM_PWM_CHANNEL, sizeof(*pc));
+	struct pwm_chip *chip = devm_pwmchip_alloc(&pdev->dev, NUM_PWM_CHANNEL, sizeof(*pc));
 	if(IS_ERR(chip))
 		return PTR_ERR(chip);
 
