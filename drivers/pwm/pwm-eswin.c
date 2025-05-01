@@ -282,7 +282,7 @@ static int eswin_pwm_probe(struct platform_device *pdev)
 
 	chip->ops = &eswin_pwm_ops;
 
-	ret = pwmchip_add(chip);
+	ret = devm_pwmchip_add(&pdev->dev, chip);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "pwmchip_add() failed: %d\n", ret);
 		goto err_pclk;
@@ -302,8 +302,6 @@ static void eswin_pwm_remove(struct platform_device *pdev)
 {
 	struct pwm_chip *chip = platform_get_drvdata(pdev);
 	struct eswin_pwm *pc = to_eswin_pwm(chip);
-
-	pwmchip_remove(chip);
 
 	clk_disable_unprepare(pc->pclk);
 	clk_disable_unprepare(pc->clk);
