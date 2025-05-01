@@ -217,7 +217,7 @@ static int eswin_pwm_probe(struct platform_device *pdev)
 	if(IS_ERR(chip))
 		return PTR_ERR(chip);
 
-	pc = pwmchip_get_drvdata(chip);
+	pc = to_eswin_pwm(chip);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res)
