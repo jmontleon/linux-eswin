@@ -790,7 +790,9 @@ static void noinstr kvm_riscv_vcpu_enter_exit(struct kvm_vcpu *vcpu,
 	 * potentially change trap CSRs.
 	 */
 
+#ifndef CONFIG_SOC_SIFIVE_EIC7700
 	kvm_riscv_vcpu_swap_in_guest_state(vcpu);
+#endif
 	guest_state_enter_irqoff();
 
 	if (kvm_riscv_nacl_sync_sret_available()) {
@@ -852,7 +854,9 @@ static void noinstr kvm_riscv_vcpu_enter_exit(struct kvm_vcpu *vcpu,
 
 	vcpu->arch.last_exit_cpu = vcpu->cpu;
 	guest_state_exit_irqoff();
+#ifndef CONFIG_SOC_SIFIVE_EIC7700
 	kvm_riscv_vcpu_swap_in_host_state(vcpu);
+#endif
 }
 
 int kvm_arch_vcpu_ioctl_run(struct kvm_vcpu *vcpu)
