@@ -143,7 +143,7 @@ static int dwc_eth_dwmac_config_dt(struct platform_device *pdev,
 	return 0;
 }
 
-static void dwc_qos_fix_speed(void *priv, unsigned int speed, unsigned int mode)
+static void dwc_qos_fix_speed(void *priv, int speed, unsigned int mode)
 {
 	unsigned long rate = 125000000;
 	int err, data = 0;
@@ -214,7 +214,7 @@ static void dwc_qos_fix_speed(void *priv, unsigned int speed, unsigned int mode)
 
 		break;
 	default:
-		dev_err(dwc_priv->dev, "invalid speed %u\n", speed);
+		dev_err(dwc_priv->dev, "invalid speed %d\n", speed);
 		break;
 	}
 
