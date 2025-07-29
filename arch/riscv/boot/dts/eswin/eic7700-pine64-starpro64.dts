@@ -1,21 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Device Tree file for Eswin EIC7700 SoC.
- *
  * Copyright 2024, Beijing ESWIN Computing Technology Co., Ltd.. All rights reserved.
- * SPDX-License-Identifier: GPL-2.0
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, version 2.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * Copyright 2024 Icenowy Zheng <uwu@icenowy.me>
  */
 
 /dts-v1/;
@@ -32,13 +18,14 @@
 #include "eic7700-pinctrl-common.dtsi"
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/leds/common.h>
 
 /* Clock frequency (in Hz) of the PCB crystal for rtcclk */
 
 / {
 	#address-cells = <2>;
 	#size-cells = <2>;
-	model = "Milk-V Megrez";
+	model = "Pine64 StarPro64";
 	compatible = "sifive,hifive-unmatched-a00", "sifive,fu740-c000",
 		     "sifive,fu740", "eswin,eic7700";
 
@@ -123,41 +110,20 @@
 	leds {
 		compatible = "gpio-leds";
 		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_gpio107_default &pinctrl_gpio108_default &pinctrl_gpio109_default>;
+		pinctrl-0 = <&pinctrl_gpio27_default &pinctrl_gpio62_default>;
 
-		gpio-107 {
-			gpios = <&portd 11 GPIO_ACTIVE_HIGH>;
-			label = "power";
+		power {
+			gpios = <&portb 30 GPIO_ACTIVE_HIGH>;
+			function = LED_FUNCTION_POWER;
+			color = <LED_COLOR_ID_WHITE>;
 			linux,default-trigger = "default-on";
 		};
 
-		gpio-108 {
-			gpios = <&portd 12 GPIO_ACTIVE_LOW>;
-			label = "heartbeat";
+		status {
+			gpios = <&porta 27 GPIO_ACTIVE_HIGH>;
+			function = LED_FUNCTION_STATUS;
+			color = <LED_COLOR_ID_RED>;
 			linux,default-trigger = "heartbeat";
-		};
-
-		gpio-109 {
-			gpios = <&portd 13 GPIO_ACTIVE_HIGH>;
-			label = "gpio-109";
-			linux,default-trigger = "default-off";
-		};
-
-		gpio-110 {
-			gpios = <&portd 14 GPIO_ACTIVE_HIGH>;
-			label = "gpio-109";
-			linux,default-trigger = "default-off";
-		};
-	};
-
-	gpio-keys {
-		compatible = "gpio-keys";
-
-		ok_key {
-			label = "OK";
-			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_gpio6_default>;
-			gpios = <&porta 6 GPIO_ACTIVE_LOW>;
 		};
 	};
 };
@@ -256,6 +222,10 @@
 	status = "okay";
 };
 
+&d0_lpcpu {
+	status = "okay";
+};
+
 &pcie {
 	status = "okay";
 };
@@ -263,7 +233,6 @@
 &d0_npu{
 	status = "okay";
 	npu-supply=<&npu_vcc1>;
-	apply_npu_1G_freq;
 };
 
 &d0_dsp_subsys {
@@ -340,7 +309,7 @@
 };
 
 &dsi_output {
-	status = "okay";
+    status = "okay";
 };
 
 &dsi_controller {
@@ -379,7 +348,7 @@
 };
 
 &dsi_panel {
-	status = "okay";
+	status = "disabled";
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_gpio5_default &pinctrl_gpio111_default>;
 	backlight0-gpios = <&porta 5 GPIO_ACTIVE_HIGH>;
@@ -486,7 +455,9 @@
 &sdhci_emmc {
 	/* emmc */
 	status = "okay";
-	delay_code = <0x17>;
+	/delete-property/ mmc-hs400-1_8v;
+	no-mmc-hs400;
+	delay_code = <0x37>;
 	drive-impedance-ohm = <50>;
 	enable-cmd-pullup;
 	enable-data-pullup;
@@ -499,14 +470,13 @@
 &sdio0 {
 	/* sd card */
 	status = "okay";
-	delay_code = <0x3b>;
+	delay_code = <0x70>;
 	drive-impedance-ohm = <33>;
 	enable-cmd-pullup;
 	enable-data-pullup;
 	no-sdio;
 	no-mmc;
 	disable-wp;
-	broken-cd;
 };
 
 &sdio1 {
@@ -540,16 +510,14 @@
 	rst-gpios = <&porta 16 GPIO_ACTIVE_LOW>;
 	eswin,rgmiisel = <&pinctrl 0x294 0x3>;
 	eswin,led-cfgs = <0x6100 0xa40 0x420>;
-	dly-param-1000m = <0x25252525 0x80268025 0x26262626>;
-	dly-param-100m = <0x48484848 0x80588048 0x58585858>;
+	dly-param-1000m = <0x23232323 0x800c8023 0x0c0c0c0c>;
+	dly-param-100m = <0x50505050 0x803f8050 0x3f3f3f3f>;
 	dly-param-10m = <0 0 0>;
 	status = "okay";
 };
 
 &d0_sata {
-	status = "okay";
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_sata_act_led_default>;
+	status = "disabled";
 };
 
 &d0_usbdrd3_0 {
@@ -558,12 +526,17 @@
 
 &d0_usbdrd_dwc3_0 {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usb0_pwren_default>;
 	dr_mode = "host";
 	maximum-speed = "super-speed";
 };
 
 &d0_usbdrd3_1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_gpio43_default>;
 	status = "okay";
+	hub-rst-gpios = <&portb 11 GPIO_ACTIVE_HIGH>;
 };
 
 &d0_usbdrd_dwc3_1 {
@@ -726,10 +699,11 @@
 };
 
 &d0_i2c1 {
+	/* mpq8785 */
 	status = "okay";
-	es5430@f {
-		compatible = "einno,es5340";
-		reg = <0xf>;
+	mpq8785@10 {
+		compatible = "mps,mpq8785";
+		reg = <0x10>;
 		eswin,regulator_default-microvolt=<1000000>;
 		eswin,regulator_label = "supply vdd1", "npu vdd1", "npu current1", "npu temperature1";
 		label = "npu_vdd";
@@ -778,29 +752,8 @@
 };
 
 &d0_i2c8 {
-	/* io extended for mipi csi */
-	status = "okay";
-	tca6416_0: gpio@20 {
-		compatible = "ti,tca6416";
-		reg = <0x20>;
-		gpio-controller; /* IRQ not connected */
-		#gpio-cells = <2>;
-		gpio-line-names = "MIPI_CSI0_PWDN", "MIPI_CSI0_RESET", "MIPI_CSI1_FBC", "MIPI_CSI1_ENB",
-				"MIPI_CSI1_RESET", "MIPI_CSI1_PWDN", "FREX_GP0", "",
-				"MIPI_CSI0_ENB", "MIPI_CSI0_FBC", "FREX_GP2", "MIPI_CSI2_FBC",
-				"MIPI_CSI2_ENB", "FREX_GP1", "MIPI_CSI2_RESET", "MIPI_CSI2_PWDN";
-	};
-	tca6416_1: gpio@21 {
-		compatible = "ti,tca6416";
-		reg = <0x21>;
-		gpio-controller;
-		#gpio-cells = <2>;
-		/* IRQ not connected */
-		gpio-line-names = "MIPI_CSI3_PWDN", "MIPI_CSI3_RESET", "MIPI_CSI3_ENB", "MIPI_CSI3_FBC",
-				"MIPI_CSI4_PWDN", "MIPI_CSI4_RESET", "MIPI_CSI4_ENB", "MIPI_CSI4_FBC",
-				"MIPI_CSI5_FBC", "MIPI_CSI5_ENB", "MIPI_CSI5_RESET", "MIPI_CSI5_PWDN",
-				"", "", "", "";
-	};
+	/* unused */
+	status = "disabled";
 };
 
 &d0_i2c9 {
@@ -816,45 +769,6 @@
 		compatible = "nxp,pcf8563";
 		reg = <0x51>;
 	};
-
-	rtc_m41t11: m41t11@68 {
-		compatible = "st,m41t11";
-		reg = <0x68>;
-	};
-};
-
-&d0_aon_i2c1 {
-	/* ina226x4 */
-	status = "okay";
-	i2c-sda-hold-time-ns = <0x40>;
-	ina226@45 {
-		compatible = "ti,ina226";
-		#io-channel-cells = <1>;
-		label = "cpu_vdd";
-		reg = <0x45>;
-		shunt-resistor = <1000>;
-	};
-	ina226@44 {
-			compatible = "ti,ina226";
-			#io-channel-cells = <1>;
-			label = "soc_vdd";
-			reg = <0x44>;
-			shunt-resistor = <1000>;
-		};
-	ina226@41 {
-			compatible = "ti,ina226";
-			#io-channel-cells = <1>;
-			label = "lpddr_vdd";
-			reg = <0x41>;
-			shunt-resistor = <1000>;
-		};
-	ina226@48 {
-			compatible = "ti,ina226";
-			#io-channel-cells = <1>;
-			label = "dc_vdd";
-			reg = <0x48>;
-			shunt-resistor = <1000>;
-		};
 };
 
 &pwm0 {
@@ -910,43 +824,21 @@
 	status = "okay";
 };
 
-&pinctrl_gpio23_default {
-	conf {
-		groups = "gpio23_group";
-		input-enable = <1>;
-		bias-pull-down = <1>;
-	};
-};
-
-&pinctrl_gpio55_default {
-	conf {
-		groups = "gpio55_group";
-		input-enable = <1>;
-		bias-pull-down = <1>;
-	};
-};
-
-
 /* GPIO Function Description
 
 	gpio0   : pcie prstn(I)
-	gpio5   : led back light power on/off(O)
-	gpio6   : system key(I)
+	gpio6   : system key(broken now)(I)
 	gpio10  : dsi touch interrupt(I)
-	gpio11  : head phone plug/unplug detection2(I)
+	gpio11  : host wake wlan(O)
 	gpio12  : tf card power on/off(O)
 	gpio14  : bt wake host(I)
 	gpio15  : wlan wake host(I)
 	gpio16  : gphy1 resetn(O)
+	gpio27  : status LED(originally SATA LED, SATA not used)(O)
 	gpio28  : head phone plug/unplug detection1(I)
-	gpio34  : m.2 power on/off(O)
+	gpio62  : power LED(O)
 	gpio94  : gphy0 resetn(O)
 	gpio106 : touch reset(O)
-	gpio107 : system led0(O)
-	gpio108 : system led1(O)
-	gpio109 : system led2(O)
-	gpio110 : system led3(O)
-	gpio111 : mipi dsi resetn(O)
 */
 
 &gpio0 {
@@ -958,30 +850,25 @@
 	apply_npu_high_freq;
 };
 
-&d0_clock {
-	status = "okay";
-	force-1_8ghz;
-};
-
 &d0_cpu_opp_table {
-        opp-1500000000 {
-                opp-hz = /bits/ 64 <CLK_FREQ_1500M>;
-                opp-microvolt = <900000>;
-                clock-latency-ns = <70000>;
-        };
-        opp-1600000000 {
-                opp-hz = /bits/ 64 <CLK_FREQ_1600M>;
-                opp-microvolt = <900000>;
-                clock-latency-ns = <70000>;
-        };
-        opp-1700000000 {
-                opp-hz = /bits/ 64 <CLK_FREQ_1700M>;
-                opp-microvolt = <900000>;
-                clock-latency-ns = <70000>;
-        };
-        opp-1800000000 {
-                opp-hz = /bits/ 64 <CLK_FREQ_1800M>;
-                opp-microvolt = <900000>;
-                clock-latency-ns = <70000>;
-        };
+	opp-1500000000 {
+		opp-hz = /bits/ 64 <CLK_FREQ_1500M>;
+		opp-microvolt = <900000>;
+		clock-latency-ns = <70000>;
+	};
+	opp-1600000000 {
+		opp-hz = /bits/ 64 <CLK_FREQ_1600M>;
+		opp-microvolt = <900000>;
+		clock-latency-ns = <70000>;
+	};
+	opp-1700000000 {
+		opp-hz = /bits/ 64 <CLK_FREQ_1700M>;
+		opp-microvolt = <900000>;
+		clock-latency-ns = <70000>;
+	};
+	opp-1800000000 {
+		opp-hz = /bits/ 64 <CLK_FREQ_1800M>;
+		opp-microvolt = <900000>;
+		clock-latency-ns = <70000>;
+	};
 };

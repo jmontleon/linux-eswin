@@ -25,7 +25,7 @@
 #define CMA_SIZE		0x20000000
 
 #include "eic7700.dtsi"
-#include "hifive-premier-p550-pinctrl.dtsi"
+#include "eic7700-pinctrl-common.dtsi"
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/gpio/gpio.h>
 
