@@ -92,7 +92,7 @@ static int eswin_pcie_start_link(struct dw_pcie *pci)
 	return 0;
 }
 
-static int eswin_pcie_link_up(struct dw_pcie *pci)
+static bool eswin_pcie_link_up(struct dw_pcie *pci)
 {
 	struct device *dev = pci->dev;
 	struct eswin_pcie *pcie = dev_get_drvdata(dev);
@@ -100,9 +100,9 @@ static int eswin_pcie_link_up(struct dw_pcie *pci)
 
 	val = readl_relaxed(pcie->mgmt_base + PCIEMGMT_STATUS0_OFFSET);
 	if ((val & PCIEMGMT_LINKUP_STATE_MASK) == PCIEMGMT_LINKUP_STATE_VALIDATE)
-		return 1;
+		return true;
 	else
-		return 0;
+		return false;
 }
 
 static int eswin_pcie_clk_enable(struct eswin_pcie *pcie)
