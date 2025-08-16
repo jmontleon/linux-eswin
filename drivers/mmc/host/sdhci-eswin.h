@@ -53,6 +53,11 @@
 #define SDHCI_CLK_208M   208000000
 #define SDHCI_CLK_200M   200000000
 
+#define AWSMMUSID GENMASK(31, 24)  // The sid of write operation
+#define AWSMMUSSID GENMASK(23, 16)  // The ssid of write operation
+#define ARSMMUSID GENMASK(15, 8)  // The sid of read operation
+#define ARSMMUSSID GENMASK(7, 0)  // The ssid of read operation
+
 /* DWC_mshc_map/DWC_mshc_phy_block register */
 #define DWC_MSHC_PTR_PHY_R 0x300
 #define PHY_CNFG_R (DWC_MSHC_PTR_PHY_R + 0x00)

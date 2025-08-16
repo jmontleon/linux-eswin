@@ -30,7 +30,10 @@
 #include <linux/reset.h>
 #include "cqhci.h"
 #include "sdhci-pltfm.h"
+
+#include <linux/eic7700-sid-cfg.h>
 #include <linux/bitfield.h>
+#include <linux/iommu.h>
 #include "sdhci-eswin.h"
 
 
@@ -756,6 +759,53 @@ cleanup:
 	return ret;
 }
 
+static int eswin_sdhci_sdio_sid_cfg(struct device *dev)
+{
+	int ret;
+	struct regmap *regmap;
+	int hsp_mmu_sdio_reg;
+	u32 rdwr_sid_ssid;
+	u32 sid;
+	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(dev);
+
+	/* not behind smmu, use the default reset value(0x0) of the reg as streamID*/
+	if (fwspec == NULL) {
+		dev_dbg(dev,
+			"dev is not behind smmu, skip configuration of sid\n");
+		return 0;
+	}
+	sid = fwspec->ids[0];
+
+	regmap = syscon_regmap_lookup_by_phandle(dev->of_node,
+						 "eswin,hsp_sp_csr");
+	if (IS_ERR(regmap)) {
+		dev_dbg(dev, "No hsp_sp_csr phandle specified\n");
+		return 0;
+	}
+
+	ret = of_property_read_u32_index(dev->of_node, "eswin,hsp_sp_csr", 1,
+					 &hsp_mmu_sdio_reg);
+	if (ret) {
+		dev_err(dev, "can't get sdio sid cfg reg offset (%d)\n", ret);
+		return ret;
+	}
+
+	/* make the reading sid the same as writing sid, ssid is fixed to zero */
+	rdwr_sid_ssid = FIELD_PREP(AWSMMUSID, sid);
+	rdwr_sid_ssid |= FIELD_PREP(ARSMMUSID, sid);
+	rdwr_sid_ssid |= FIELD_PREP(AWSMMUSSID, 0);
+	rdwr_sid_ssid |= FIELD_PREP(ARSMMUSSID, 0);
+	regmap_write(regmap, hsp_mmu_sdio_reg, rdwr_sid_ssid);
+
+	ret = eic7700_dynm_sid_enable(dev_to_node(dev));
+	if (ret < 0)
+		dev_err(dev, "failed to config sdio streamID(%d)!\n", sid);
+	else
+		dev_dbg(dev, "success to config sdio streamID(%d)!\n", sid);
+
+	return ret;
+}
+
 static int eswin_sdhci_sdio_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -887,6 +937,12 @@ static int eswin_sdhci_sdio_probe(struct platform_device *pdev)
 		regmap_write(regmap, ESWIN_SDHCI_SD1_PWR_CTRL, MSHC_HOST_VAL_STABLE);
 	}
 
+	ret = eswin_sdhci_sdio_sid_cfg(dev);
+	if (ret < 0) {
+		dev_err(dev, "failed to use smmu\n");
+		goto clk_disable_all;
+	}
+
 	if (!of_property_read_u32(dev->of_node, "delay_code", &val)) {
 		eswin_sdhci_sdio->phy.delay_code = val;
 	}
@@ -923,6 +979,8 @@ static int eswin_sdhci_sdio_probe(struct platform_device *pdev)
 		goto unreg_clk;
 	}
 
+	eic7700_tbu_power(&pdev->dev, true);
+
 	ret = eswin_sdhci_sdio_add_host(eswin_sdhci_sdio);
 	if (ret)
 		goto unreg_clk;
@@ -954,6 +1012,7 @@ static void eswin_sdhci_sdio_remove(struct platform_device *pdev)
 	void __iomem *core_clk_reg = eswin_sdhci_sdio->core_clk_reg;
 
 	sdhci_pltfm_remove(pdev);
+	eic7700_tbu_power(&pdev->dev, false);
 
 	if (eswin_sdhci_sdio->txrx_rst) {
 		ret = reset_control_assert(eswin_sdhci_sdio->txrx_rst);
@@ -1008,7 +1067,9 @@ static void __exit eswin_sdhci_sdio_exit(void)
 	platform_driver_unregister(&eswin_sdhci_sdio_driver);
 }
 
-/* Cause: EMMC is often used as a system disk(mmc0), we need the SD driver to run later than the EMMC driver */
+/* Cause: EMMC is often used as a system disk(mmc0). So we
+ * need the SD driver to run later than the EMMC driver
+ */
 late_initcall(eswin_sdhci_sdio_init);
 module_exit(eswin_sdhci_sdio_exit);
 

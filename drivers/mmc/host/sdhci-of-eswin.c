@@ -30,8 +30,10 @@
 #include "cqhci.h"
 #include "sdhci-pltfm.h"
 #include <linux/reset.h>
+#include <linux/iommu.h>
 #include <linux/bitfield.h>
 #include <linux/regmap.h>
+#include <linux/eic7700-sid-cfg.h>
 #include "sdhci-eswin.h"
 
 #define SDHCI_EMMC0_INT_STATUS 0x508
@@ -814,6 +816,53 @@ cleanup:
 	return ret;
 }
 
+static int eswin_emmc_sid_cfg(struct device *dev)
+{
+	int ret;
+	struct regmap *regmap;
+	int hsp_mmu_emmc_reg;
+	u32 rdwr_sid_ssid;
+	u32 sid;
+	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(dev);
+
+	/* not behind smmu, use the default reset value(0x0) of the reg as streamID*/
+	if (fwspec == NULL) {
+		dev_dbg(dev,
+			"dev is not behind smmu, skip configuration of sid\n");
+		return 0;
+	}
+	sid = fwspec->ids[0];
+
+	regmap = syscon_regmap_lookup_by_phandle(dev->of_node,
+						 "eswin,hsp_sp_csr");
+	if (IS_ERR(regmap)) {
+		dev_dbg(dev, "No hsp_sp_csr phandle specified\n");
+		return 0;
+	}
+
+	ret = of_property_read_u32_index(dev->of_node, "eswin,hsp_sp_csr", 1,
+					 &hsp_mmu_emmc_reg);
+	if (ret) {
+		dev_err(dev, "can't get emmc sid cfg reg offset (%d)\n", ret);
+		return ret;
+	}
+
+	/* make the reading sid the same as writing sid, ssid is fixed to zero */
+	rdwr_sid_ssid = FIELD_PREP(AWSMMUSID, sid);
+	rdwr_sid_ssid |= FIELD_PREP(ARSMMUSID, sid);
+	rdwr_sid_ssid |= FIELD_PREP(AWSMMUSSID, 0);
+	rdwr_sid_ssid |= FIELD_PREP(ARSMMUSSID, 0);
+	regmap_write(regmap, hsp_mmu_emmc_reg, rdwr_sid_ssid);
+
+	ret = eic7700_dynm_sid_enable(dev_to_node(dev));
+	if (ret < 0)
+		dev_err(dev, "failed to config emmc streamID(%d)!\n", sid);
+	else
+		dev_dbg(dev, "success to config emmc streamID(%d)!\n", sid);
+
+	return ret;
+}
+
 static int eswin_sdhci_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -874,6 +923,8 @@ static int eswin_sdhci_probe(struct platform_device *pdev)
 		goto clk_disable_all;
 	}
 
+	eic7700_tbu_power(dev, true);
+
 	regmap = syscon_regmap_lookup_by_phandle(dev->of_node,
 						 "eswin,hsp_sp_csr");
 	if (IS_ERR(regmap)) {
@@ -883,6 +934,9 @@ static int eswin_sdhci_probe(struct platform_device *pdev)
 
 	regmap_write(regmap, SDHCI_EMMC0_INT_STATUS, MSHC_INT_CLK_STABLE);
 	regmap_write(regmap, SDHCI_EMMC0_PWR_CLEAR, MSHC_HOST_VAL_STABLE);
+
+	/* smmu */
+	eswin_emmc_sid_cfg(dev);
 
 	if (!of_property_read_u32(dev->of_node, "delay_code", &val)) {
 		eswin_sdhci->phy.delay_code = val;
@@ -964,6 +1018,7 @@ static void eswin_sdhci_remove(struct platform_device *pdev)
 	void __iomem *core_clk_reg = eswin_sdhci->core_clk_reg;
 
 	sdhci_pltfm_remove(pdev);
+	eic7700_tbu_power(&pdev->dev, false);
 
 	if (eswin_sdhci->txrx_rst) {
 		ret = reset_control_assert(eswin_sdhci->txrx_rst);
