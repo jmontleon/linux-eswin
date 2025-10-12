@@ -2,7 +2,6 @@
 subdir-y += allwinner
 subdir-y += andes
 subdir-y += canaan
-subdir-y += eswin
 subdir-y += microchip
 subdir-y += renesas
 subdir-y += sifive
