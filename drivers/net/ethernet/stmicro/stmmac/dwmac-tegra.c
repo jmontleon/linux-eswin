@@ -308,7 +308,7 @@ static int tegra_mgbe_probe(struct platform_device *pdev)
 		goto disable_clks;
 	}
 
-	plat->core_type = DWMAC_CORE_XGMAC;
+	plat->has_xgmac = 1;
 	plat->flags |= STMMAC_FLAG_TSO_EN;
 	plat->pmt = 1;
 	plat->bsp_priv = mgbe;
